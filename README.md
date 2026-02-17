@@ -8,6 +8,7 @@ This repository includes a minimal daily-quant pipeline with the following layer
 4. **Portfolio + risk layer**: optimize weights and apply risk controls.
 5. **Walk-forward evaluation**: rolling train/test performance evaluation.
 6. **Execution + OMS + reconciliation**: paper broker adapter, order state tracking, and break checks.
+7. **Live-ops toolkit**: small-capital live guardrails, monitoring alerts, parameter registry, and postmortem report generation.
 
 ## Quick start
 
@@ -24,35 +25,6 @@ signal = (factors["mom20"] > 0).astype(float)
 bt = VectorizedBacktester(one_way_bps=2)
 result = bt.run(bars["adj_close"], signal)
 print(result.metrics)
-```
-
-## Portfolio optimization + risk controls
-
-```python
-import pandas as pd
-from quantitative_codex.portfolio import optimize_weights
-from quantitative_codex.risk import apply_risk_controls
-
-mu = pd.Series({"AAPL": 0.10, "MSFT": 0.08, "AMZN": 0.06})
-risk = pd.Series({"AAPL": 0.20, "MSFT": 0.18, "AMZN": 0.24})
-adv = pd.Series({"AAPL": 5e9, "MSFT": 4e9, "AMZN": 3e9})
-
-weights = optimize_weights(mu, risk=risk, max_weight=0.5)
-weights = apply_risk_controls(weights, adv_usd=adv, max_weight=0.5)
-```
-
-## Walk-forward evaluation
-
-```python
-from quantitative_codex.evaluation import WalkForwardConfig, walk_forward_evaluate
-
-# prices: wide DataFrame [date x symbols]
-wf = walk_forward_evaluate(
-    prices,
-    WalkForwardConfig(train_window=756, test_window=63, rebalance_every=5),
-)
-print(wf["summary"])
-print(wf["segments"].tail())
 ```
 
 ## Execution (paper) + OMS + reconciliation
@@ -72,14 +44,41 @@ broker.process_market_data("AAPL", 185.0)
 oms.sync()
 
 internal = oms.positions.snapshot()
-broker_snapshot = pd.Series({"AAPL": 10.0})  # in real flow from broker API
+broker_snapshot = pd.Series({"AAPL": 10.0})
 breaks = reconcile_positions(internal, broker_snapshot)
 print(breaks)
+```
+
+## Small-capital live run (paper-first)
+
+```python
+import pandas as pd
+from quantitative_codex.live import LiveTradingConfig, SmallCapitalLiveRunner
+
+cfg = LiveTradingConfig(starting_equity=5000, max_notional_per_order=300)
+runner = SmallCapitalLiveRunner(oms, cfg)
+runner.rebalance(
+    target_weights=pd.Series({"AAPL": 0.10, "MSFT": 0.08}),
+    prices=pd.Series({"AAPL": 190.0, "MSFT": 410.0}),
+)
+```
+
+## Monitoring + parameter maintenance + review
+
+```python
+from quantitative_codex.monitoring import evaluate_alerts
+from quantitative_codex.parameters import ParameterRegistry
+from quantitative_codex.review import build_postmortem_report
+
+registry = ParameterRegistry("./params.json")
+registry.add("mom_trend", "v1.0.0", {"fast": 50, "slow": 200}, note="initial live")
+
+alerts = evaluate_alerts(equity_curve, pnl_series, order_log_df, positions_notional)
+report = build_postmortem_report(trades_df, alerts=[a.__dict__ for a in alerts])
 ```
 
 ## Notes
 
 - Signals are shifted by 1 day before execution to avoid look-ahead bias.
 - Cost model is a bps turnover model suitable for MVP research.
-- The walk-forward module is intentionally simple and intended as a baseline for extension.
-- The execution module is paper-first and deterministic by design for safe integration testing.
+- Execution remains paper-first and deterministic by design for safe integration testing.
