@@ -7,6 +7,7 @@ This repository includes a minimal daily-quant pipeline with the following layer
 3. **Vectorized backtest layer**: run next-day execution simulation with turnover costs.
 4. **Portfolio + risk layer**: optimize weights and apply risk controls.
 5. **Walk-forward evaluation**: rolling train/test performance evaluation.
+6. **Execution + OMS + reconciliation**: paper broker adapter, order state tracking, and break checks.
 
 ## Quick start
 
@@ -54,8 +55,31 @@ print(wf["summary"])
 print(wf["segments"].tail())
 ```
 
+## Execution (paper) + OMS + reconciliation
+
+```python
+import pandas as pd
+from quantitative_codex.execution.brokers import PaperBrokerAdapter
+from quantitative_codex.execution.oms import OMS
+from quantitative_codex.reconciliation import reconcile_positions
+
+broker = PaperBrokerAdapter()
+oms = OMS(broker)
+
+orders = oms.generate_orders_from_target(pd.Series({"AAPL": 10.0}))
+oms.submit_orders(orders)
+broker.process_market_data("AAPL", 185.0)
+oms.sync()
+
+internal = oms.positions.snapshot()
+broker_snapshot = pd.Series({"AAPL": 10.0})  # in real flow from broker API
+breaks = reconcile_positions(internal, broker_snapshot)
+print(breaks)
+```
+
 ## Notes
 
 - Signals are shifted by 1 day before execution to avoid look-ahead bias.
 - Cost model is a bps turnover model suitable for MVP research.
 - The walk-forward module is intentionally simple and intended as a baseline for extension.
+- The execution module is paper-first and deterministic by design for safe integration testing.
