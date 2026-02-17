@@ -1,3 +1,3 @@
 """MVP package for EOD quant research."""
 
-__all__ = ["data", "factors", "backtest"]
+__all__ = ["data", "factors", "backtest", "portfolio", "risk", "evaluation"]
