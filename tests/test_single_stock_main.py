@@ -30,6 +30,6 @@ def test_run_single_stock_backtest_from_csv(tmp_path):
         "2024-01-05,103,104,102,103,1000\n"
         "2024-01-08,104,105,103,104,1000\n"
     )
-    out = run_single_stock_backtest(csv, symbol="TEST", strategy="mom20", one_way_bps=1.0)
+    out = run_single_stock_backtest(csv_path=csv, symbol="TEST", strategy="mom20", one_way_bps=1.0)
     assert out.symbol == "TEST"
     assert "equity" in out.frame.columns

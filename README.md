@@ -31,10 +31,10 @@ print(result.metrics)
 ## Single-stock backtest main function
 
 ```bash
-python -m quantitative_codex.main   --csv ./data/AAPL.csv   --symbol AAPL   --strategy ma_cross   --cost-bps 2   --output ./artifacts/aapl_backtest.csv
+python -m quantitative_codex.main --symbol NVDA --strategy ma_cross --cost-bps 2 --output ./artifacts/nvda_backtest.csv
 ```
 
-Supported strategies: `mom20`, `ma_cross`, `rsi2_reversion`.
+Supported strategies: `mom20`, `ma_cross`, `rsi2_reversion`. If `--csv` is omitted, data is auto-downloaded from Stooq by `--symbol`.
 
 ## Execution (paper) + OMS + reconciliation
 

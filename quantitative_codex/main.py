@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import io
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +20,34 @@ class SingleStockBacktestOutput:
     strategy: str
     result: BacktestResult
     frame: pd.DataFrame
+
+
+def fetch_stooq_daily(symbol: str) -> pd.DataFrame:
+    """Download daily OHLCV bars from Stooq for a US symbol (e.g., NVDA)."""
+    ticker = symbol.lower().replace(".us", "") + ".us"
+    query = urllib.parse.urlencode({"s": ticker, "i": "d"})
+    url = f"https://stooq.com/q/d/l/?{query}"
+    with urllib.request.urlopen(url, timeout=30) as resp:
+        payload = resp.read().decode("utf-8")
+
+    df = pd.read_csv(io.StringIO(payload))
+    if df.empty:
+        raise ValueError(f"No data returned from Stooq for symbol={symbol}")
+    return df
+
+
+def get_bars(csv_path: str | Path | None, symbol: str | None) -> pd.DataFrame:
+    if csv_path:
+        return load_eod_csv(csv_path)
+    if not symbol:
+        raise ValueError("Either --csv or --symbol must be provided")
+
+    raw = fetch_stooq_daily(symbol)
+    cache_dir = Path(".cache")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / f"{symbol.upper()}_stooq_daily.csv"
+    raw.to_csv(cache_file, index=False)
+    return load_eod_csv(cache_file)
 
 
 def build_signal(df: pd.DataFrame, strategy: str = "mom20") -> pd.Series:
@@ -44,13 +75,13 @@ def build_signal(df: pd.DataFrame, strategy: str = "mom20") -> pd.Series:
 
 
 def run_single_stock_backtest(
-    csv_path: str | Path,
+    csv_path: str | Path | None = None,
     symbol: str = "UNKNOWN",
     strategy: str = "mom20",
     one_way_bps: float = 2.0,
 ) -> SingleStockBacktestOutput:
-    """Run a daily single-stock vectorized backtest from local CSV."""
-    bars = load_eod_csv(csv_path)
+    """Run a daily single-stock vectorized backtest from local CSV or auto-downloaded data."""
+    bars = get_bars(csv_path=csv_path, symbol=symbol)
     signal = build_signal(bars, strategy=strategy)
     price = bars["adj_close"] if "adj_close" in bars.columns else bars["close"]
 
@@ -72,8 +103,8 @@ def run_single_stock_backtest(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run single-stock EOD backtest")
-    parser.add_argument("--csv", required=True, help="Path to OHLCV csv")
-    parser.add_argument("--symbol", default="UNKNOWN", help="Ticker symbol label for report")
+    parser.add_argument("--csv", default="", help="Path to OHLCV csv (optional if --symbol is provided)")
+    parser.add_argument("--symbol", default="", help="Ticker symbol label (e.g., NVDA). Used for auto-download if --csv absent")
     parser.add_argument(
         "--strategy",
         default="mom20",
@@ -88,8 +119,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     out = run_single_stock_backtest(
-        csv_path=args.csv,
-        symbol=args.symbol,
+        csv_path=args.csv or None,
+        symbol=(args.symbol or "UNKNOWN"),
         strategy=args.strategy,
         one_way_bps=args.cost_bps,
     )
