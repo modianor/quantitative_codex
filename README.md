@@ -27,6 +27,15 @@ result = bt.run(bars["adj_close"], signal)
 print(result.metrics)
 ```
 
+
+## Single-stock backtest main function
+
+```bash
+python -m quantitative_codex.main   --csv ./data/AAPL.csv   --symbol AAPL   --strategy ma_cross   --cost-bps 2   --output ./artifacts/aapl_backtest.csv
+```
+
+Supported strategies: `mom20`, `ma_cross`, `rsi2_reversion`.
+
 ## Execution (paper) + OMS + reconciliation
 
 ```python
